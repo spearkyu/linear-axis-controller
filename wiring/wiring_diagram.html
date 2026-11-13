@@ -1,0 +1,635 @@
+<title>리니어 축 배선도</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: 상단 요약 → 가로 스크롤되는 큰 배선도(부품 클릭 시 옆에 정보창) → 핀/전원/설정 표 */
+:root {
+  --bg: #f3f4f1;
+  --panel: #ffffff;
+  --fg: #1b2120;
+  --muted: #5b6662;
+  --line: #d6dbd5;
+  --accent: #17796a;
+  --gnd: #2a2f2e;
+  --shadow: rgba(20, 30, 28, 0.16);
+  --w24: #d7372f;
+  --wstep: #e3870f;
+  --wdir: #2b72d0;
+  --wen: #8752d2;
+  --w5v: #d23f88;
+  --wsig: #12968a;
+  --coil-red: #d7372f;
+  --coil-blue: #2b72d0;
+  --coil-green: #2c9748;
+  --font-body: "IBM Plex Sans KR", "Malgun Gothic", "Apple SD Gothic Neo", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", Consolas, "Courier New", monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #131817; --panel: #1b2120; --fg: #e6ebe8; --muted: #9aa6a1; --line: #2c3532;
+    --accent: #5cc4af; --gnd: #d3d9d6; --shadow: rgba(0, 0, 0, 0.5); color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #131817; --panel: #1b2120; --fg: #e6ebe8; --muted: #9aa6a1; --line: #2c3532;
+  --accent: #5cc4af; --gnd: #d3d9d6; --shadow: rgba(0, 0, 0, 0.5); color-scheme: dark;
+}
+body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 15px; line-height: 1.6; }
+.wrap { max-width: 1200px; margin: 0 auto; padding-block: 28px 56px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+h1 { font-size: 26px; font-weight: 600; margin: 0 0 4px; text-wrap: balance; }
+h2 { font-size: 18px; font-weight: 600; margin: 40px 0 12px; }
+.lede { color: var(--muted); margin: 0 0 20px; max-width: 68ch; }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 18px; margin: 0 0 14px; font-size: 13px; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { display: inline-block; width: 22px; height: 4px; border-radius: 2px; }
+.dwrap { position: relative; }
+.diagram { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; overflow-x: auto; }
+.diagram svg { display: block; min-width: 1100px; width: 100%; height: auto; }
+.hint { font-size: 13px; color: var(--muted); margin: 8px 0 0; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; }
+.grid > div { min-width: 0; }
+.tbl { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-weight: 500; color: var(--muted); font-size: 12.5px; letter-spacing: 0.02em; }
+tr:last-child td { border-bottom: 0; }
+code, .pin { font-family: var(--font-mono); font-size: 13px; }
+.pin { font-weight: 600; }
+.sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+ul.check { margin: 0; padding-left: 20px; }
+ul.check li { margin: 4px 0; }
+.note { border-left: 3px solid var(--accent); padding: 10px 14px; background: var(--panel); border-radius: 0; margin: 16px 0 0; font-size: 14px; }
+.src { font-size: 13px; color: var(--muted); }
+.src a { color: var(--accent); }
+/* 배선도 내부 */
+.w { fill: none; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; transition: opacity .15s, stroke-width .15s; }
+.halo { fill: none; stroke: var(--panel); stroke-width: 7.5; stroke-linecap: round; stroke-linejoin: round; }
+.lbl { font-family: var(--font-body); font-size: 13px; fill: var(--fg); }
+.lbl-s { font-family: var(--font-body); font-size: 12px; fill: var(--muted); }
+.mono { font-family: var(--font-mono); }
+.part { cursor: pointer; transition: opacity .15s; }
+.part:focus { outline: none; }
+.part:hover .body, .part:focus-visible .body { stroke: var(--accent); stroke-width: 3; }
+.part.sel .body { stroke: var(--accent); stroke-width: 4; }
+/* 선택 시: 관련 배선만 진하게, 나머지는 흐리게 */
+svg.focus .w { opacity: 0.12; }
+svg.focus .w.hot { opacity: 1; stroke-width: 4.2; }
+svg.focus .jn { opacity: 0.12; }
+svg.focus .jn.hot { opacity: 1; }
+svg.focus .part:not(.sel):not(.linked) { opacity: 0.35; }
+/* 부품 정보 패널 (배선도 아래) */
+.pop { position: relative; margin-top: 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+  padding: 16px 18px 18px; font-size: 13.5px; scroll-margin-bottom: 16px; min-height: 64px; }
+.pop .empty { margin: 4px 0; color: var(--muted); }
+.pgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 4px 24px; }
+.pgrid > div { min-width: 0; }
+.pop h3 { margin: 0 36px 2px 0; font-size: 17px; font-weight: 600; }
+.pop .role { color: var(--muted); margin: 0 0 10px; }
+.pop h4 { margin: 12px 0 5px; font-size: 12px; font-weight: 500; color: var(--muted); letter-spacing: 0.04em; }
+.pop table { font-size: 13px; }
+.pop td { padding: 5px 9px; }
+.pop td:first-child { white-space: nowrap; color: var(--muted); }
+.pop ul { margin: 0; padding-left: 18px; }
+.pop li { margin: 3px 0; }
+.pop .x { position: absolute; top: 8px; right: 8px; width: 28px; height: 28px; border-radius: 8px; border: 1px solid var(--line);
+  background: var(--panel); color: var(--fg); font: inherit; font-size: 16px; line-height: 1; cursor: pointer; }
+.pop .x:hover, .pop .x:focus-visible { border-color: var(--accent); outline: none; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0 0; }
+.chips button { font: inherit; font-size: 13px; padding: 5px 11px; border-radius: 999px; border: 1px solid var(--line);
+  background: var(--panel); color: var(--fg); cursor: pointer; }
+.chips button:hover { border-color: var(--accent); }
+.chips button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--panel); }
+.chips button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { .w, .part { transition: none; } }
+</style>
+
+<div class="wrap">
+  <h1>리니어 축 배선도</h1>
+  <p class="lede">Arduino Mega 2560 하나로 DM542 + STM-4248(리니어 축)과 TMC2209 + OK35STH13(소형 축)을 구동하는 배선입니다. 24V SMPS 1개를 퓨즈 2개로 나눠 두 드라이버에 공급하고, 전원 차단은 SMPS를 꽂은 스위치 멀티탭으로 합니다.</p>
+
+  <div class="legend">
+    <span><i style="background:var(--w24)"></i>24V +</span>
+    <span><i style="background:var(--gnd)"></i>GND (모두 공통)</span>
+    <span><i style="background:var(--wstep)"></i>STEP / PUL</span>
+    <span><i style="background:var(--wdir)"></i>DIR</span>
+    <span><i style="background:var(--wen)"></i>EN / ENA</span>
+    <span><i style="background:var(--w5v)"></i>5V 로직 · UART</span>
+    <span><i style="background:var(--wsig)"></i>스위치 입력</span>
+  </div>
+
+  <div class="dwrap" id="dwrap">
+  <div class="diagram" id="diagram">
+  <svg id="dg" viewBox="0 0 1440 1000" role="img" aria-labelledby="dgTitle dgDesc">
+    <title id="dgTitle">리니어 축 배선도</title>
+    <desc id="dgDesc">24V SMPS에서 퓨즈 3A를 거쳐 DM542로, 퓨즈 1A를 거쳐 TMC2209로 전원이 들어간다. Arduino Mega의 D6, D5, D4가 DM542에, D7, D22, D23과 TX1, RX1이 TMC2209에 연결되고, 리밋스위치는 D2와 D3에 연결된다.</desc>
+
+    <!-- ===== 24V SMPS ===== -->
+    <g class="part" data-part="smps" tabindex="0" role="button" aria-label="24V SMPS 정보 보기">
+      <rect class="body" x="40" y="40" width="330" height="150" rx="6" fill="#cfd3d8" stroke="#8a9097"/>
+      <g stroke="#a9aeb4" stroke-width="2">
+        <line x1="230" y1="58" x2="350" y2="58"/><line x1="230" y1="68" x2="350" y2="68"/>
+        <line x1="230" y1="78" x2="350" y2="78"/><line x1="230" y1="88" x2="350" y2="88"/>
+      </g>
+      <text x="58" y="74" font-size="19" font-weight="600" fill="#1b2120">24V SMPS</text>
+      <text x="58" y="96" font-size="13" fill="#2f3634">DC 24V · 3A 이상</text>
+      <text x="58" y="116" font-size="12" fill="#4a5250">예: LRS-75-24</text>
+      <rect x="52" y="146" width="306" height="40" rx="3" fill="#232526"/>
+      <g font-size="11" fill="#e9ecee" text-anchor="middle" class="mono">
+        <text x="70" y="160">L</text><text x="110" y="160">N</text><text x="150" y="160">FG</text>
+        <text x="205" y="160">-V</text><text x="245" y="160">-V</text><text x="295" y="160">+V</text><text x="335" y="160">+V</text>
+      </g>
+      <g fill="#b9bec4"><circle cx="70" cy="175" r="7"/><circle cx="110" cy="175" r="7"/><circle cx="150" cy="175" r="7"/>
+        <circle cx="205" cy="175" r="7"/><circle cx="245" cy="175" r="7"/><circle cx="295" cy="175" r="7"/><circle cx="335" cy="175" r="7"/></g>
+    </g>
+
+    <!-- ===== AC 220V (스위치 멀티탭) ===== -->
+    <g class="part" data-part="ac" tabindex="0" role="button" aria-label="AC 220V 정보 보기">
+      <rect class="body" x="40" y="250" width="160" height="52" rx="6" fill="var(--panel)" stroke="var(--muted)"/>
+      <text x="120" y="272" text-anchor="middle" class="lbl">AC 220V 플러그</text>
+      <text x="120" y="291" text-anchor="middle" class="lbl-s">스위치 멀티탭에 연결</text>
+    </g>
+
+    <!-- ===== 퓨즈 ===== -->
+    <g class="part" data-part="fuse" tabindex="0" role="button" aria-label="퓨즈 정보 보기">
+      <rect class="body" x="75" y="418" width="80" height="36" rx="4" fill="var(--panel)" stroke="var(--muted)"/>
+      <rect x="93" y="430" width="44" height="12" rx="6" fill="none" stroke="var(--muted)"/>
+      <text x="115" y="474" text-anchor="middle" class="lbl-s">F1 · 3A</text>
+      <rect class="body" x="215" y="418" width="80" height="36" rx="4" fill="var(--panel)" stroke="var(--muted)"/>
+      <rect x="233" y="430" width="44" height="12" rx="6" fill="none" stroke="var(--muted)"/>
+      <text x="255" y="474" text-anchor="middle" class="lbl-s">F2 · 1A</text>
+    </g>
+
+    <!-- ===== DM542 ===== -->
+    <g class="part" data-part="dm542" tabindex="0" role="button" aria-label="DM542 정보 보기">
+      <rect class="body" x="420" y="40" width="390" height="228" rx="6" fill="#1f2022" stroke="#000"/>
+      <text x="440" y="76" font-size="22" font-weight="600" fill="#f2f2f2">DM542</text>
+      <text x="440" y="98" font-size="12" fill="#bfc3c6">HLTNC · 2상 스텝모터 드라이버 · DC 20~50V</text>
+      <circle cx="786" cy="62" r="6" fill="#3bd16f"/><text x="776" y="66" text-anchor="end" font-size="11" fill="#bfc3c6">PWR/ALM</text>
+      <rect x="440" y="118" width="176" height="44" rx="3" fill="#2457c4"/>
+      <g id="dip"></g>
+      <text x="626" y="132" font-size="11" fill="#bfc3c6">DIP (아래 = ON)</text>
+      <g font-size="11.5" fill="#e6e8ea">
+        <text x="440" y="184">SW1 on · SW2 off · SW3 on → 1.91A peak</text>
+        <text x="440" y="200">SW4 off → 정지 시 전류 절반</text>
+        <text x="440" y="216">SW5 on · SW6 on · SW7 off · SW8 on → 3200 pulse/rev</text>
+      </g>
+      <rect x="430" y="228" width="180" height="40" rx="3" fill="#2f9a48"/>
+      <rect x="625" y="228" width="175" height="40" rx="3" fill="#2f9a48"/>
+      <g id="dmTerms"></g>
+    </g>
+
+    <!-- ===== STM-4248 ===== -->
+    <g class="part" data-part="stm4248" tabindex="0" role="button" aria-label="STM-4248 모터 정보 보기">
+      <rect class="body" x="840" y="300" width="130" height="130" rx="10" fill="#2a2c2f" stroke="#000"/>
+      <text x="905" y="322" text-anchor="middle" font-size="12" font-weight="600" fill="#e6e8ea">STM-4248</text>
+      <circle cx="905" cy="375" r="34" fill="#9aa0a6"/><circle cx="905" cy="375" r="9" fill="#e5e7e9"/>
+      <g fill="#2a2c2f"><circle cx="852" cy="312" r="3"/><circle cx="958" cy="312" r="3"/><circle cx="852" cy="418" r="3"/><circle cx="958" cy="418" r="3"/></g>
+    </g>
+
+    <!-- ===== TMC2209 ===== -->
+    <g class="part" data-part="tmc2209" tabindex="0" role="button" aria-label="TMC2209 정보 보기">
+      <rect class="body" x="1040" y="60" width="170" height="200" rx="5" fill="#5b33a6" stroke="#2f1663"/>
+      <text x="1125" y="80" text-anchor="middle" font-size="13" font-weight="600" fill="#f1ecfb">TMC2209</text>
+      <rect x="1100" y="116" width="50" height="86" rx="3" fill="#c3c7cc"/>
+      <g stroke="#9aa0a6" stroke-width="2"><line x1="1108" y1="120" x2="1108" y2="198"/><line x1="1118" y1="120" x2="1118" y2="198"/><line x1="1128" y1="120" x2="1128" y2="198"/><line x1="1138" y1="120" x2="1138" y2="198"/></g>
+      <g id="tmcPins"></g>
+      <text x="1125" y="282" text-anchor="middle" class="lbl-s">BTT 핀 배열 기준 · 실크 인쇄 확인</text>
+    </g>
+
+    <!-- ===== 100uF ===== -->
+    <g class="part" data-part="cap" tabindex="0" role="button" aria-label="100µF 콘덴서 정보 보기">
+      <rect class="body" x="1210" y="52" width="120" height="60" rx="6" fill="transparent" stroke="transparent"/>
+      <line x1="1222" y1="85" x2="1222" y2="93" stroke="var(--gnd)" stroke-width="1.5"/>
+      <line x1="1214" y1="93" x2="1230" y2="93" stroke="var(--gnd)" stroke-width="2.5"/>
+      <line x1="1214" y1="99" x2="1230" y2="99" stroke="var(--gnd)" stroke-width="2.5"/>
+      <line x1="1222" y1="99" x2="1222" y2="107" stroke="var(--gnd)" stroke-width="1.5"/>
+      <text x="1252" y="66" class="lbl-s">100µF 콘덴서</text>
+    </g>
+
+    <!-- ===== OK35STH13 ===== -->
+    <g class="part" data-part="ok35" tabindex="0" role="button" aria-label="OK35STH13 모터 정보 보기">
+      <circle class="body" cx="1340" cy="162" r="52" fill="#b9bdc2" stroke="#7d8287"/>
+      <circle cx="1340" cy="162" r="16" fill="#e2e4e6" stroke="#7d8287"/>
+      <circle cx="1340" cy="162" r="4" fill="#7d8287"/>
+      <text x="1340" y="236" text-anchor="middle" class="lbl">OK35STH13</text>
+      <text x="1340" y="253" text-anchor="middle" class="lbl-s">0.3A · 0.9°</text>
+    </g>
+
+    <!-- ===== Arduino Mega 2560 ===== -->
+    <g class="part" data-part="mega" tabindex="0" role="button" aria-label="Arduino Mega 정보 보기">
+      <rect class="body" x="430" y="600" width="620" height="280" rx="10" fill="#0e6c8b" stroke="#08455a"/>
+      <rect x="410" y="640" width="54" height="48" rx="3" fill="#c3c7cc" stroke="#8a9097"/>
+      <rect x="414" y="800" width="40" height="40" rx="3" fill="#1e1f21"/>
+      <text x="402" y="669" text-anchor="end" class="lbl-s">USB → PC</text>
+      <text x="406" y="825" text-anchor="end" class="lbl-s">DC 7~12V</text>
+      <rect x="600" y="716" width="120" height="64" rx="3" fill="#1d1f21"/>
+      <text x="660" y="752" text-anchor="middle" font-size="11" fill="#c9cdd0" class="mono">ATmega2560</text>
+      <text x="860" y="790" text-anchor="middle" font-size="17" font-weight="600" fill="#eef7fa">Arduino Mega 2560</text>
+      <g font-size="12" fill="#eef7fa" text-anchor="end" class="mono">
+        <text x="1000" y="704">DIR → 22</text>
+        <text x="1000" y="722">EN → 23</text>
+      </g>
+      <g id="megaPins"></g>
+    </g>
+
+    <!-- ===== 리밋스위치 ===== -->
+    <g class="part" data-part="limits" tabindex="0" role="button" aria-label="리밋스위치 정보 보기">
+      <rect class="body" x="90" y="900" width="120" height="50" rx="5" fill="#2b2d30"/>
+      <line x1="100" y1="950" x2="200" y2="962" stroke="#9aa0a6" stroke-width="3" stroke-linecap="round"/>
+      <text x="150" y="930" text-anchor="middle" font-size="12" fill="#eceeef">원점 리밋 · D2</text>
+      <rect class="body" x="240" y="900" width="120" height="50" rx="5" fill="#2b2d30"/>
+      <line x1="250" y1="950" x2="350" y2="962" stroke="#9aa0a6" stroke-width="3" stroke-linecap="round"/>
+      <text x="300" y="930" text-anchor="middle" font-size="12" fill="#eceeef">끝 리밋 · D3</text>
+      <g font-size="10" fill="#cfd3d6" class="mono"><text x="146" y="914" text-anchor="end">NC</text><text x="296" y="914" text-anchor="end">NC</text>
+        <text x="126" y="946" text-anchor="end">C</text><text x="276" y="946" text-anchor="end">C</text></g>
+    </g>
+
+    <!-- ===== 배선 (data-parts = 이 선과 연결된 부품) ===== -->
+    <g id="wires">
+      <!-- AC -->
+      <path class="w" data-parts="ac smps" stroke="#8b5a2b" d="M70 182 V250"/>
+      <path class="w" data-parts="ac smps" stroke="#4f7fb8" d="M110 182 V250"/>
+      <path class="w" data-parts="ac smps" stroke="#8fb32a" d="M150 182 V250"/>
+
+      <!-- 24V+: SMPS +V → 퓨즈 분기 -->
+      <path class="w" data-parts="smps fuse dm542 tmc2209" stroke="var(--w24)" d="M335 182 V400 H115 V418"/>
+      <path class="w" data-parts="smps fuse tmc2209" stroke="var(--w24)" d="M255 400 V418"/>
+      <!-- GND 버스: SMPS -V → DM542 GND, TMC GND, Mega GND -->
+      <path class="w" data-parts="smps dm542 tmc2209 mega cap" stroke="var(--gnd)" d="M245 182 V212 H400 V520 H1244 V107 H1204"/>
+      <path class="w" data-parts="smps dm542" stroke="var(--gnd)" d="M640 520 V266"/>
+      <!-- F1 → DM542 +V,  F2 → TMC VM -->
+      <path class="w" data-parts="fuse dm542 smps" stroke="var(--w24)" d="M115 454 V505 H669 V266"/>
+      <path class="w" data-parts="fuse tmc2209 cap smps" stroke="var(--w24)" d="M255 454 V495 H1232 V85 H1204"/>
+
+      <!-- Mega → DM542 -->
+      <path class="w" data-parts="mega dm542" stroke="var(--gnd)" d="M574 614 V440 H475 V266"/>
+      <path class="w" data-parts="mega dm542" stroke="var(--gnd)" d="M475 286 H595 V266"/>
+      <path class="w" data-parts="mega dm542" stroke="var(--gnd)" d="M535 286 V266"/>
+      <path class="w" data-parts="mega dm542" stroke="var(--wstep)" d="M718 614 V420 H445 V266"/>
+      <path class="w" data-parts="mega dm542" stroke="var(--wdir)" d="M736 614 V410 H505 V266"/>
+      <path class="w" data-parts="mega dm542" stroke="var(--wen)" d="M754 614 V400 H565 V266"/>
+
+      <!-- DM542 → STM-4248 (빨강·파랑 = A, 초록·검정 = B) -->
+      <path class="w" data-parts="dm542 stm4248" stroke="var(--coil-red)" d="M698 266 V395 H840"/>
+      <path class="w" data-parts="dm542 stm4248" stroke="var(--coil-blue)" d="M727 266 V370 H840"/>
+      <path class="w" data-parts="dm542 stm4248" stroke="var(--coil-green)" d="M756 266 V345 H840"/>
+      <path class="w" data-parts="dm542 stm4248" stroke="var(--gnd)" d="M785 266 V320 H840"/>
+
+      <!-- Mega → TMC2209 -->
+      <path class="w" data-parts="mega tmc2209 resistor" stroke="var(--w5v)" d="M940 614 V440 H1016 V151 H1052"/>
+      <path class="w" data-parts="mega tmc2209 resistor" stroke="var(--w5v)" d="M922 614 V545 H980 V440"/>
+      <path class="w" data-parts="mega tmc2209" stroke="var(--wstep)" d="M700 614 V460 H1024 V217 H1052"/>
+      <path class="w" data-parts="mega tmc2209" stroke="var(--wen)" d="M1034 643 H1075 V300 H1032 V85 H1052"/>
+      <path class="w" data-parts="mega tmc2209" stroke="var(--wdir)" d="M1004 643 H984 V239 H1052"/>
+      <path class="w" data-parts="mega tmc2209" stroke="var(--w5v)" d="M1034 625 H1262 V217 H1204"/>
+
+      <!-- TMC2209 → OK35 (검정·초록 = A, 빨강·파랑 = B) -->
+      <path class="w" data-parts="tmc2209 ok35" stroke="var(--coil-green)" d="M1204 129 H1290"/>
+      <path class="w" data-parts="tmc2209 ok35" stroke="var(--gnd)" d="M1204 151 H1290"/>
+      <path class="w" data-parts="tmc2209 ok35" stroke="var(--coil-red)" d="M1204 173 H1290"/>
+      <path class="w" data-parts="tmc2209 ok35" stroke="var(--coil-blue)" d="M1204 195 H1290"/>
+
+      <!-- 리밋스위치 -->
+      <path class="w" data-parts="limits mega" stroke="var(--wsig)" d="M150 900 V580 H790 V614"/>
+      <path class="w" data-parts="limits mega" stroke="var(--wsig)" d="M300 900 V588 H772 V614"/>
+      <path class="w" data-parts="limits mega" stroke="var(--gnd)" d="M130 950 V975 H632 V872"/>
+      <path class="w" data-parts="limits mega" stroke="var(--gnd)" d="M280 950 V975"/>
+    </g>
+
+    <!-- 1kΩ 저항 (TX1 쪽) -->
+    <g class="part" data-part="resistor" tabindex="0" role="button" aria-label="1kΩ 저항 정보 보기">
+      <rect class="body" x="973" y="478" width="14" height="40" rx="2" fill="var(--panel)" stroke="var(--w5v)" stroke-width="2"/>
+      <text x="994" y="503" class="lbl-s">1kΩ</text>
+    </g>
+
+    <!-- 접점(연결점) -->
+    <g id="junctions">
+      <circle class="jn" data-parts="smps fuse tmc2209" cx="255" cy="400" r="4.5" fill="var(--w24)"/>
+      <circle class="jn" data-parts="smps dm542" cx="640" cy="520" r="4.5" fill="var(--gnd)"/>
+      <circle class="jn" data-parts="smps mega dm542" cx="574" cy="520" r="4.5" fill="var(--gnd)"/>
+      <circle class="jn" data-parts="mega dm542" cx="475" cy="286" r="4.5" fill="var(--gnd)"/>
+      <circle class="jn" data-parts="mega dm542" cx="535" cy="286" r="4.5" fill="var(--gnd)"/>
+      <circle class="jn" data-parts="mega tmc2209 resistor" cx="980" cy="440" r="4.5" fill="var(--w5v)"/>
+      <circle class="jn" data-parts="limits mega" cx="280" cy="975" r="4.5" fill="var(--gnd)"/>
+    </g>
+  </svg>
+  </div>
+  </div>
+  <p class="hint">부품을 누르면 아래 패널에 사양과 연결 정보가 표시되고, 그 부품에 연결된 배선만 진하게 남습니다. 빈 곳을 누르거나 Esc를 누르면 선택이 풀립니다. 선이 교차하는 곳은 연결이 아니며, 점(●)이 찍힌 곳만 연결됩니다.</p>
+  <div class="chips" id="chips" role="group" aria-label="부품 선택"></div>
+  <section class="pop" id="pop" aria-live="polite"></section>
+
+  <h2>전원</h2>
+  <div class="tbl"><table>
+    <thead><tr><th>전원</th><th>개수</th><th>연결</th><th>비고</th></tr></thead>
+    <tbody>
+      <tr><td><b>DC 24V SMPS</b></td><td>1개</td><td>+V → F1 3A → DM542 <span class="pin">+V</span><br>+V → F2 1A → TMC2209 <span class="pin">VM</span></td><td>3A 이상. 실제 소비는 1A 미만</td></tr>
+      <tr><td>SMPS -V</td><td>공통</td><td>DM542 <span class="pin">GND</span>, TMC2209 <span class="pin">GND</span>, Mega <span class="pin">GND</span></td><td>각 드라이버로 따로 뽑는 스타 배선</td></tr>
+      <tr><td>AC 220V</td><td>1개</td><td>스위치 멀티탭 → SMPS</td><td>멀티탭 스위치가 전원 차단 역할</td></tr>
+      <tr><td>USB 5V</td><td>1개</td><td>PC → Mega USB</td><td>단독 운용 시 24V→9V 강압 후 DC 잭</td></tr>
+      <tr><td>Mega 5V</td><td>추가 전원 없음</td><td>Mega <span class="pin">5V</span> → TMC2209 <span class="pin">VIO</span></td><td>로직 기준 전압만 공급</td></tr>
+    </tbody>
+  </table></div>
+
+  <h2>Arduino Mega 핀 연결</h2>
+  <div class="tbl"><table>
+    <thead><tr><th>Mega 핀</th><th>연결 대상</th><th>용도</th></tr></thead>
+    <tbody>
+      <tr><td><span class="sw" style="background:var(--wstep)"></span><span class="pin">D6</span></td><td>DM542 <span class="pin">PUL+</span></td><td>리니어 축 STEP</td></tr>
+      <tr><td><span class="sw" style="background:var(--wdir)"></span><span class="pin">D5</span></td><td>DM542 <span class="pin">DIR+</span></td><td>리니어 축 방향</td></tr>
+      <tr><td><span class="sw" style="background:var(--wen)"></span><span class="pin">D4</span></td><td>DM542 <span class="pin">ENA+</span></td><td>HIGH면 모터 해제</td></tr>
+      <tr><td><span class="sw" style="background:var(--gnd)"></span><span class="pin">GND</span></td><td>DM542 <span class="pin">PUL- · DIR- · ENA-</span></td><td>세 단자를 서로 연결</td></tr>
+      <tr><td><span class="sw" style="background:var(--wstep)"></span><span class="pin">D7</span></td><td>TMC2209 <span class="pin">STEP</span></td><td>소형 축 STEP (FastAccelStepper는 6·7·8만 가능)</td></tr>
+      <tr><td><span class="sw" style="background:var(--wdir)"></span><span class="pin">D22</span></td><td>TMC2209 <span class="pin">DIR</span></td><td>소형 축 방향</td></tr>
+      <tr><td><span class="sw" style="background:var(--wen)"></span><span class="pin">D23</span></td><td>TMC2209 <span class="pin">EN</span></td><td>LOW면 동작</td></tr>
+      <tr><td><span class="sw" style="background:var(--w5v)"></span><span class="pin">D18 TX1</span></td><td>1kΩ → TMC2209 <span class="pin">PDN_UART</span></td><td>전류 설정·상태 읽기</td></tr>
+      <tr><td><span class="sw" style="background:var(--w5v)"></span><span class="pin">D19 RX1</span></td><td>TMC2209 <span class="pin">PDN_UART</span></td><td>TX1 저항 뒤쪽과 같은 선</td></tr>
+      <tr><td><span class="sw" style="background:var(--w5v)"></span><span class="pin">5V</span></td><td>TMC2209 <span class="pin">VIO</span></td><td>5V 로직</td></tr>
+      <tr><td><span class="sw" style="background:var(--wsig)"></span><span class="pin">D2</span></td><td>원점 리밋 <span class="pin">NC</span></td><td>COM은 GND. 평소 LOW, 눌림·단선 시 HIGH</td></tr>
+      <tr><td><span class="sw" style="background:var(--wsig)"></span><span class="pin">D3</span></td><td>끝 리밋 <span class="pin">NC</span></td><td>COM은 GND</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="grid">
+    <div>
+      <h2>모터 선</h2>
+      <div class="tbl"><table>
+        <thead><tr><th>모터</th><th>코일 A</th><th>코일 B</th></tr></thead>
+        <tbody>
+          <tr><td>STM-4248 → DM542</td><td><span class="sw" style="background:var(--coil-red)"></span>빨강 <span class="pin">A+</span><br><span class="sw" style="background:var(--coil-blue)"></span>파랑 <span class="pin">A-</span></td><td><span class="sw" style="background:var(--coil-green)"></span>초록 <span class="pin">B+</span><br><span class="sw" style="background:var(--gnd)"></span>검정 <span class="pin">B-</span></td></tr>
+          <tr><td>OK35STH13 → TMC2209</td><td><span class="sw" style="background:var(--gnd)"></span>검정 <span class="pin">A1</span><br><span class="sw" style="background:var(--coil-green)"></span>초록 <span class="pin">A2</span></td><td><span class="sw" style="background:var(--coil-red)"></span>빨강 <span class="pin">B1</span><br><span class="sw" style="background:var(--coil-blue)"></span>파랑 <span class="pin">B2</span></td></tr>
+        </tbody>
+      </table></div>
+      <p class="hint">연결 전에 멀티미터로 같은 코일(수 Ω)인지 확인하세요. 쌍 안에서 +/-가 바뀌면 방향만 반대가 됩니다.</p>
+    </div>
+    <div>
+      <h2>드라이버 설정</h2>
+      <div class="tbl"><table>
+        <thead><tr><th>드라이버</th><th>설정</th></tr></thead>
+        <tbody>
+          <tr><td>DM542</td><td>SW1 on · SW2 off · SW3 on (1.91A peak)<br>SW4 off (정지 시 절반)<br>SW5 on · SW6 on · SW7 off · SW8 on (3200)<br>첫 시운전은 1.00A (SW1~3 on)부터</td></tr>
+          <tr><td>TMC2209</td><td>MS1 · MS2 → GND (1/8 스텝, UART 주소 0)<br>전류 250mA RMS (UART 설정 권장)<br>VM 옆 100µF 콘덴서</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+  </div>
+
+  <h2>전원 넣기 전 확인</h2>
+  <ul class="check">
+    <li>SMPS 출력이 24V인지 테스터로 확인 (29V 어댑터 사용 금지: TMC2209 최대 29V)</li>
+    <li>+V와 GND가 바뀌지 않았는지, 퓨즈가 끼워져 있는지</li>
+    <li>SMPS -V, DM542 GND, TMC2209 GND, Mega GND가 모두 이어져 있는지</li>
+    <li>SMPS를 꽂은 멀티탭 스위치를 손 닿는 곳에 두기 (끄면 두 드라이버가 함께 꺼짐)</li>
+    <li>모터 선은 전원을 끈 상태에서만 꽂고 빼기</li>
+    <li>24V를 Mega VIN에 연결하지 않기 (허용 7~12V)</li>
+  </ul>
+
+  <p class="note">TMC2209 모듈은 제조사마다 핀 이름이 다릅니다 (A1/A2 ↔ 1A/1B ↔ M1A/M1B, VIO ↔ VDD ↔ VCC_IO). 배선도는 BIGTREETECH 모듈 기준이므로 구매한 모듈 뒷면 실크 인쇄와 대조하세요.</p>
+
+  <p class="src">코드: <a href="https://github.com/spearkyu/linear-axis-controller">GitHub 저장소 (stepper_serial.ino, 명령 설명)</a></p>
+  <p class="src">참고: <a href="https://bttwiki.com/TMC2209.html">BIGTREETECH TMC2209 위키 (핀 배열)</a> · <a href="https://docs.arduino.cc/hardware/mega-2560/">Arduino Mega 2560 공식 문서</a> · DM542 단자와 DIP 표는 실물 사진(HLTNC DM542) 기준. 이미지를 가져오지 않고 핀 배열을 참고해 새로 그렸습니다.</p>
+</div>
+
+<script>
+(function () {
+  var NS = "http://www.w3.org/2000/svg";
+  function el(tag, attrs, text) {
+    var e = document.createElementNS(NS, tag);
+    for (var k in attrs) e.setAttribute(k, attrs[k]);
+    if (text != null) e.textContent = text;
+    return e;
+  }
+
+  // DIP 스위치: 1 on, 2 off, 3 on, 4 off, 5 on, 6 on, 7 off, 8 on (아래 = ON)
+  var dip = document.getElementById("dip");
+  [1, 0, 1, 0, 1, 1, 0, 1].forEach(function (on, i) {
+    var x = 448 + i * 21;
+    dip.appendChild(el("rect", { x: x, y: 124, width: 14, height: 32, rx: 2, fill: "#1a3f93" }));
+    dip.appendChild(el("rect", { x: x + 2, y: on ? 140 : 126, width: 10, height: 14, rx: 1, fill: "#ffffff" }));
+    dip.appendChild(el("text", { x: x + 7, y: 115, "text-anchor": "middle", "font-size": 10, fill: "#bfc3c6" }, String(i + 1)));
+  });
+
+  // DM542 단자
+  var dm = document.getElementById("dmTerms");
+  [["PUL+", 445], ["PUL-", 475], ["DIR+", 505], ["DIR-", 535], ["ENA+", 565], ["ENA-", 595],
+   ["GND", 640], ["+V", 669], ["A+", 698], ["A-", 727], ["B+", 756], ["B-", 785]].forEach(function (t) {
+    dm.appendChild(el("text", { x: t[1], y: 241, "text-anchor": "middle", "font-size": 9.5, fill: "#f4fff6", class: "mono" }, t[0]));
+    dm.appendChild(el("circle", { cx: t[1], cy: 256, r: 6.5, fill: "#cfd3d8", stroke: "#1d5d2c" }));
+  });
+
+  // TMC2209 핀 (J1 왼쪽, J2 오른쪽)
+  var tmc = document.getElementById("tmcPins");
+  var j1 = ["EN", "MS1 ⏚", "MS2 ⏚", "PDN", "PDN", "CLK", "STEP", "DIR"];
+  var j2 = ["VM", "GND", "A2", "A1", "B1", "B2", "VIO", "GND"];
+  for (var i = 0; i < 8; i++) {
+    var y = 85 + i * 22;
+    tmc.appendChild(el("rect", { x: 1046, y: y - 6, width: 12, height: 12, fill: "#d9b44a" }));
+    tmc.appendChild(el("text", { x: 1063, y: y + 4, "font-size": 10, fill: "#f1ecfb", class: "mono" }, j1[i]));
+    tmc.appendChild(el("rect", { x: 1192, y: y - 6, width: 12, height: 12, fill: "#d9b44a" }));
+    tmc.appendChild(el("text", { x: 1187, y: y + 4, "text-anchor": "end", "font-size": 10, fill: "#f1ecfb", class: "mono" }, j2[i]));
+  }
+
+  // Mega 헤더
+  var mega = document.getElementById("megaPins");
+  var used = { "GND": 1, "7": 1, "6": 1, "5": 1, "4": 1, "3": 1, "2": 1, "18 TX1": 1, "19 RX1": 1 };
+  var topPins = [["SCL",520],["SDA",538],["AREF",556],["GND",574],["13",592],["12",610],["11",628],["10",646],["9",664],["8",682],
+                 ["7",700],["6",718],["5",736],["4",754],["3",772],["2",790],["1 TX0",808],["0 RX0",826],
+                 ["14",850],["15",868],["16",886],["17",904],["18 TX1",922],["19 RX1",940],["20",958],["21",976]];
+  mega.appendChild(el("rect", { x: 510, y: 606, width: 182, height: 16, fill: "#141516" }));
+  mega.appendChild(el("rect", { x: 692, y: 606, width: 144, height: 16, fill: "#141516" }));
+  mega.appendChild(el("rect", { x: 841, y: 606, width: 144, height: 16, fill: "#141516" }));
+  topPins.forEach(function (p) {
+    var on = used[p[0]];
+    mega.appendChild(el("rect", { x: p[1] - 4, y: 610, width: 8, height: 8, fill: on ? "#ffd34d" : "#6b6f73" }));
+    mega.appendChild(el("text", { x: p[1] + 3, y: 627, transform: "rotate(90 " + (p[1] + 3) + " 627)",
+      "font-size": 10, fill: on ? "#ffe9a6" : "#cfe6ee", class: "mono", "font-weight": on ? 600 : 400 }, p[0]));
+  });
+  var bottomPins = [["IOREF",560],["RESET",578],["3.3V",596],["5V",614],["GND",632],["GND",650],["VIN",668]];
+  mega.appendChild(el("rect", { x: 551, y: 858, width: 126, height: 16, fill: "#141516" }));
+  bottomPins.forEach(function (p, i) {
+    var on = (i === 4);
+    mega.appendChild(el("rect", { x: p[1] - 4, y: 862, width: 8, height: 8, fill: on ? "#ffd34d" : "#6b6f73" }));
+    mega.appendChild(el("text", { x: p[1] + 3, y: 853, transform: "rotate(-90 " + (p[1] + 3) + " 853)",
+      "font-size": 10, fill: on ? "#ffe9a6" : "#cfe6ee", class: "mono" }, p[0]));
+  });
+  for (var a = 0; a < 16; a++) {
+    var ax = 700 + a * 18 + (a >= 8 ? 6 : 0);
+    mega.appendChild(el("rect", { x: ax - 4, y: 862, width: 8, height: 8, fill: "#6b6f73" }));
+  }
+  mega.appendChild(el("text", { x: 838, y: 853, "text-anchor": "middle", "font-size": 10, fill: "#cfe6ee", class: "mono" }, "A0 ~ A15"));
+  // 오른쪽 2열 헤더: 5V, 22/23 ... GND
+  mega.appendChild(el("rect", { x: 1002, y: 616, width: 34, height: 240, fill: "#141516" }));
+  [625, 643, 661, 679, 697, 811, 829, 847].forEach(function (y, r) {
+    var lit = (r === 0 || r === 1);
+    mega.appendChild(el("rect", { x: 1006, y: y - 4, width: 8, height: 8, fill: lit ? "#ffd34d" : "#6b6f73" }));
+    mega.appendChild(el("rect", { x: 1024, y: y - 4, width: 8, height: 8, fill: lit ? "#ffd34d" : "#6b6f73" }));
+  });
+  mega.appendChild(el("text", { x: 1019, y: 760, "text-anchor": "middle", "font-size": 12, fill: "#cfe6ee" }, "⋮"));
+  mega.appendChild(el("text", { x: 997, y: 629, "text-anchor": "end", "font-size": 10, fill: "#ffe9a6", class: "mono" }, "5V"));
+  mega.appendChild(el("text", { x: 997, y: 851, "text-anchor": "end", "font-size": 10, fill: "#cfe6ee", class: "mono" }, "GND"));
+
+  // 선마다 배경색 테두리(halo)를 깔아 교차 부분이 위/아래로 구분되게 한다
+  document.querySelectorAll("#wires path.w").forEach(function (p) {
+    var h = p.cloneNode(false);
+    h.setAttribute("class", "halo");
+    h.removeAttribute("stroke");
+    h.removeAttribute("data-parts");
+    p.parentNode.insertBefore(h, p);
+  });
+
+  // ===== 부품 정보 =====
+  var P = function (s) { return '<span class="pin">' + s + "</span>"; };
+  var parts = {
+    smps: {
+      name: "24V SMPS", role: "AC 220V를 DC 24V로 바꿔 두 드라이버에 모터 전원을 공급합니다.",
+      spec: [["출력", "DC 24V"], ["용량", "3A 이상 (72W 이상)"], ["예시 모델", "MEAN WELL LRS-75-24"], ["실제 소비", "1A 미만"]],
+      conn: [[P("L") + " · " + P("N"), "AC 220V 플러그 (갈색 L, 파랑 N)"], [P("FG"), "접지 (녹황선)"], [P("-V"), "GND 버스 → DM542, TMC2209, Mega"], [P("+V"), "F1 3A → DM542, F2 1A → TMC2209"]],
+      notes: ["처음 켜면 출력 단자를 테스터로 재서 24V인지 확인합니다. V.ADJ 가변저항으로 미세 조정할 수 있습니다.", "AC 단자는 감전 위험이 있으니 단자 커버를 씌우고, 배선 작업은 플러그를 뽑은 상태에서 합니다.", "각 드라이버로 가는 +V, -V는 단자에서 따로 뽑습니다(스타 배선)."]
+    },
+    ac: {
+      name: "AC 220V 플러그", role: "SMPS에 상용 전원을 넣습니다. 스위치 멀티탭에 꽂아 두면 멀티탭 스위치가 전체 전원 차단 역할을 합니다.",
+      spec: [["전압", "AC 220V 60Hz"], ["전선", "3심 (L, N, 접지)"], ["차단", "스위치 멀티탭"]],
+      conn: [["갈색 (L)", "SMPS " + P("L")], ["파랑 (N)", "SMPS " + P("N")], ["녹황 (접지)", "SMPS " + P("FG")]],
+      notes: ["멀티탭 스위치를 손 닿는 곳에 두고, 이상하면 바로 끕니다.", "SMPS 쪽 배선을 바꿀 때는 반드시 플러그를 뽑습니다."]
+    },
+    fuse: {
+      name: "퓨즈 F1 · F2", role: "배선 실수나 단락이 났을 때 해당 드라이버로 가는 24V만 끊어 나머지를 보호합니다.",
+      spec: [["F1", "3A (DM542 쪽)"], ["F2", "1A (TMC2209 쪽)"], ["형식", "인라인 퓨즈 홀더 + 유리관 또는 블레이드 퓨즈"]],
+      conn: [["입력", "SMPS " + P("+V") + "에서 분기"], ["F1 출력", "DM542 " + P("+V")], ["F2 출력", "TMC2209 " + P("VM")]],
+      notes: ["퓨즈가 끊어지면 교체하기 전에 원인(극성 반대, 단락, 모터 선 접촉)부터 확인합니다.", "퓨즈는 + 쪽에만 넣습니다."]
+    },
+    dm542: {
+      name: "DM542 드라이버", role: "STM-4248 리니어 축 모터를 구동합니다. Mega가 보내는 펄스 1개당 마이크로스텝 1개만큼 돕니다.",
+      spec: [["전원", "DC 20~50V (24V 사용)"], ["출력 전류", "1.00~4.20A peak, DIP 8단계"], ["분해능", "400~25600 pulse/rev"], ["신호 입력", "옵토커플러, 5~24V"]],
+      conn: [[P("PUL+ / PUL-"), "Mega " + P("D6") + " / GND"], [P("DIR+ / DIR-"), "Mega " + P("D5") + " / GND"], [P("ENA+ / ENA-"), "Mega " + P("D4") + " / GND"], [P("GND / +V"), "GND 버스 / 퓨즈 F1"], [P("A+ A- B+ B-"), "STM-4248 빨강 · 파랑 · 초록 · 검정"]],
+      notes: ["DIP: SW1 on, SW2 off, SW3 on (1.91A peak), SW4 off, SW5 on, SW6 on, SW7 off, SW8 on (3200 pulse/rev).", "기구에 장착된 상태의 첫 시운전은 1.00A(SW1~3 모두 on)로 낮춰서 시작합니다.", "ENA+에 HIGH가 들어가면 모터가 풀립니다.", "전원이 켜진 상태에서 모터 선을 꽂거나 빼지 않습니다."]
+    },
+    stm4248: {
+      name: "STM-4248 스텝모터", role: "리니어 축 캐리지를 벨트로 움직이는 메인 모터입니다.",
+      spec: [["규격", "NEMA17, 몸체 48mm"], ["정격 전류", "1.5A/상 (라벨 DC 3V)"], ["스텝각", "1.8° (200스텝/회전)"], ["유지 토크", "약 0.4~0.5Nm"], ["분해능", "3200 pulse/rev, GT2 20T 기준 80 pulse/mm"]],
+      conn: [["빨강", "DM542 " + P("A+")], ["파랑", "DM542 " + P("A-")], ["초록", "DM542 " + P("B+")], ["검정", "DM542 " + P("B-")]],
+      notes: ["연결 전에 멀티미터로 빨강-파랑, 초록-검정이 각각 수 Ω인지 확인합니다.", "운전 중 표면 온도 60~80°C까지는 정상입니다.", "방향이 반대면 A+와 A-만 바꾸거나 코드에서 방향을 뒤집습니다."]
+    },
+    tmc2209: {
+      name: "TMC2209 드라이버", role: "OK35STH13 소형 모터를 저소음으로 구동합니다. UART로 전류를 mA 단위로 설정할 수 있습니다.",
+      spec: [["모터 전원 VM", "4.75~28V (절대 최대 29V)"], ["로직 전원 VIO", "3.3~5V (Mega 5V)"], ["출력 전류", "이 모터는 250mA RMS로 설정"], ["마이크로스텝", "MS1 · MS2 GND → 1/8"]],
+      conn: [[P("EN"), "Mega " + P("D23") + " (LOW = 동작)"], [P("MS1 · MS2"), "GND (UART 주소 0)"], [P("PDN"), "TX1(1kΩ 거쳐) + RX1"], [P("STEP / DIR"), "Mega " + P("D7") + " / " + P("D22")], [P("VM / GND"), "퓨즈 F2 / GND 버스"], [P("A1 A2 B1 B2"), "OK35 검정 · 초록 · 빨강 · 파랑"], [P("VIO"), "Mega " + P("5V")]],
+      notes: ["모듈 제조사마다 핀 이름이 다릅니다(A1/A2 ↔ 1A/1B, VIO ↔ VDD). 뒷면 실크 인쇄와 대조하세요.", "29V 어댑터는 사용하지 않습니다.", "VM 바로 옆에 100µF 콘덴서를 답니다.", "StallGuard(센서 없는 원점)를 쓰려면 DIAG 핀을 Mega D21에 추가로 연결합니다."]
+    },
+    cap: {
+      name: "100µF 전해 콘덴서", role: "모터가 전류를 급하게 끌 때 생기는 전압 스파이크를 흡수해 TMC2209를 보호합니다.",
+      spec: [["용량", "100µF"], ["내압", "35V 이상"], ["종류", "전해 콘덴서 (극성 있음)"]],
+      conn: [["+ (긴 다리)", "TMC2209 " + P("VM")], ["- (흰 띠 쪽)", "TMC2209 " + P("GND")]],
+      notes: ["극성을 반대로 달면 터질 수 있습니다.", "다리를 짧게 해서 모듈 핀에 최대한 가깝게 답니다."]
+    },
+    ok35: {
+      name: "OK35STH13 스텝모터", role: "TMC2209로 구동하는 소형 원형 스텝모터입니다. 가벼운 회전 기구에 씁니다.",
+      spec: [["모델", "OK35STH13-0304A"], ["크기", "Φ36 × 12mm"], ["정격 전류", "0.3A/상"], ["스텝각", "0.9° (400스텝/회전)"], ["유지 토크", "0.04Nm"], ["분해능", "1/8 스텝 → 3200 pulse/rev"]],
+      conn: [["검정", "TMC2209 " + P("A1")], ["초록", "TMC2209 " + P("A2")], ["빨강", "TMC2209 " + P("B1")], ["파랑", "TMC2209 " + P("B2")]],
+      notes: ["DM542에 연결하면 최소 전류(1A)가 정격의 3배라 과열됩니다.", "토크가 작으므로 하중이 걸리는 기구에는 쓰지 않습니다.", "판매 페이지 표기 'B+ BUL'은 오타로 보이며 파랑이 B-입니다."]
+    },
+    mega: {
+      name: "Arduino Mega 2560", role: "두 드라이버에 펄스와 방향 신호를 보내고 리밋스위치를 읽습니다. PC와는 USB 시리얼로 통신합니다.",
+      spec: [["MCU", "ATmega2560, 16MHz, 5V 로직"], ["전원", "USB 5V 또는 DC 잭 7~12V"], ["펄스 한계", "2축 합계 약 37,000펄스/초"], ["STEP 핀 제약", "6, 7, 8만 가능 (Timer4)"]],
+      conn: [[P("D6 D5 D4"), "DM542 PUL+ · DIR+ · ENA+"], [P("D7 D22 D23"), "TMC2209 STEP · DIR · EN"], [P("D18 / D19"), "TMC2209 PDN_UART (TX1 / RX1)"], [P("D2 / D3"), "원점 · 끝 리밋 NC"], [P("5V"), "TMC2209 VIO"], [P("GND"), "GND 버스, DM542 신호 -, 스위치 COM"]],
+      notes: ["24V를 VIN에 넣으면 보드가 망가집니다(허용 7~12V).", "D2, D3은 인터럽트를 쓸 수 있는 핀이라 리밋 감지에 적합합니다.", "PC 없이 운용할 때는 24V→9V 강압 컨버터 출력을 DC 잭에 넣습니다."]
+    },
+    resistor: {
+      name: "1kΩ 저항", role: "TMC2209 UART는 한 가닥(PDN_UART)으로 송수신하므로, Mega TX1 출력이 TMC 응답과 부딪히지 않게 막아 줍니다.",
+      spec: [["값", "1kΩ, 1/4W"], ["위치", "TX1과 PDN_UART 사이"]],
+      conn: [["한쪽", "Mega " + P("D18 TX1")], ["다른 쪽", "TMC2209 " + P("PDN") + " + Mega " + P("D19 RX1")]],
+      notes: ["UART를 쓰지 않고 Vref 가변저항으로 전류를 맞출 경우 저항과 TX1/RX1 배선은 생략할 수 있습니다."]
+    },
+    limits: {
+      name: "리밋스위치 2개", role: "캐리지가 레일 양 끝에 닿으면 Mega가 멈추게 합니다. 원점 스위치는 원점 복귀의 기준점입니다.",
+      spec: [["종류", "마이크로 스위치 (COM, NC, NO)"], ["배선", "NC 사용 → 단선도 '눌림'으로 감지"], ["입력 설정", "INPUT_PULLUP, 평소 LOW / 눌림 HIGH"]],
+      conn: [["원점 NC", "Mega " + P("D2")], ["끝 NC", "Mega " + P("D3")], ["COM (둘 다)", "Mega " + P("GND")], ["NO", "사용 안 함"]],
+      notes: ["캐리지가 기구의 기계적 끝에 닿기 전에 스위치가 먼저 눌리는 위치에 답니다.", "처음 전원을 넣으면 손으로 눌러 보며 status 명령으로 인식되는지 확인합니다.", "스케치는 두 스위치를 인터럽트로도 감시해서, 해당 방향으로 움직이는 중에 눌리면 즉시 멈춥니다."]
+    }
+  };
+  var order = ["smps", "ac", "fuse", "dm542", "stm4248", "tmc2209", "cap", "ok35", "mega", "resistor", "limits"];
+
+  var svg = document.getElementById("dg");
+  var wrap = document.getElementById("dwrap");
+  var diagram = document.getElementById("diagram");
+  var pop = document.getElementById("pop");
+  var chips = document.getElementById("chips");
+  var wires = Array.prototype.slice.call(document.querySelectorAll("#wires .w, #junctions .jn"));
+  var current = null;
+
+  function table(list) {
+    return '<div class="tbl"><table><tbody>' + list.map(function (r) {
+      return "<tr><td>" + r[0] + "</td><td>" + r[1] + "</td></tr>";
+    }).join("") + "</tbody></table></div>";
+  }
+
+  var EMPTY = '<p class="empty">배선도에서 부품을 누르거나 위 버튼을 고르면 사양과 연결 정보가 여기에 표시됩니다.</p>';
+
+  // 패널이 화면 밖이면 보이는 곳까지만 스크롤
+  function reveal() {
+    var r = pop.getBoundingClientRect();
+    if (r.top > window.innerHeight - 80 || r.bottom < 0) pop.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
+
+  function select(id, fromDiagram) {
+    var d = parts[id];
+    if (!d) return;
+    current = id;
+    pop.innerHTML = '<button type="button" class="x" aria-label="선택 해제">×</button>' +
+      "<h3>" + d.name + '</h3><p class="role">' + d.role + "</p>" +
+      '<div class="pgrid"><div><h4>사양</h4>' + table(d.spec) + "</div><div><h4>연결</h4>" + table(d.conn) + "</div></div>" +
+      "<h4>주의</h4><ul>" + d.notes.map(function (n) { return "<li>" + n + "</li>"; }).join("") + "</ul>";
+    pop.querySelector(".x").addEventListener("click", clear);
+
+    // 관련 배선 강조 + 연결된 부품 표시
+    var linked = {};
+    wires.forEach(function (w) {
+      var list = (w.getAttribute("data-parts") || "").split(" ");
+      var hot = list.indexOf(id) !== -1;
+      w.classList.toggle("hot", hot);
+      if (hot) list.forEach(function (p) { linked[p] = 1; });
+    });
+    svg.classList.add("focus");
+    document.querySelectorAll(".part").forEach(function (g) {
+      var pid = g.getAttribute("data-part");
+      g.classList.toggle("sel", pid === id);
+      g.classList.toggle("linked", pid !== id && !!linked[pid]);
+    });
+    chips.querySelectorAll("button").forEach(function (b) {
+      b.setAttribute("aria-pressed", b.getAttribute("data-part") === id ? "true" : "false");
+    });
+    if (fromDiagram) reveal();
+  }
+
+  function clear() {
+    current = null;
+    pop.innerHTML = EMPTY;
+    svg.classList.remove("focus");
+    wires.forEach(function (w) { w.classList.remove("hot"); });
+    document.querySelectorAll(".part").forEach(function (g) { g.classList.remove("sel", "linked"); });
+    chips.querySelectorAll("button").forEach(function (b) { b.setAttribute("aria-pressed", "false"); });
+  }
+
+  order.forEach(function (id) {
+    var b = document.createElement("button");
+    b.type = "button";
+    b.setAttribute("data-part", id);
+    b.setAttribute("aria-pressed", "false");
+    b.textContent = parts[id].name;
+    b.addEventListener("click", function () { current === id ? clear() : select(id); });
+    chips.appendChild(b);
+  });
+  document.querySelectorAll(".part").forEach(function (g) {
+    var id = g.getAttribute("data-part");
+    g.addEventListener("click", function (e) { e.stopPropagation(); current === id ? clear() : select(id, true); });
+    g.addEventListener("keydown", function (e) {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); select(id, true); }
+    });
+  });
+  svg.addEventListener("click", function () { if (current) clear(); });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape" && current) clear(); });
+  pop.innerHTML = EMPTY;
+})();
+</script>

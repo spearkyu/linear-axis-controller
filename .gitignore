@@ -1,0 +1,7 @@
+# 이 저장소에는 아래 항목만 올린다 (나머지 폴더는 별도 프로젝트/자료)
+/*
+!/.gitignore
+!/README.md
+!/stepper_serial/
+!/wiring/
+!/docs/
